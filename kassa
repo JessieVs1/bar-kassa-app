@@ -1,195 +1,50 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import html2pdf from "html2pdf.js";
+// === BACKEND (Node.js + Express) ===
+// server.js
 
-const PRODUCTS = [
-  { id: 1, name: "Bier", price: 2.5 },
-  { id: 2, name: "Wijn", price: 3.0 },
-  { id: 3, name: "Frisdrank", price: 2.0 },
-  { id: 4, name: "Snack", price: 1.5 },
-];
+const express = require('express');
+const fs = require('fs');
+const cors = require('cors');
+const app = express();
+const PORT = 3001;
 
-const USERS = [
-  { name: "Jan", code: "1234" },
-  { name: "Lisa", code: "5678" },
-  { name: "Tom", code: "0000" },
-];
+app.use(cors());
+app.use(express.json());
 
-export default function BarKassaApp() {
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [codeInput, setCodeInput] = useState("");
-  const [authenticated, setAuthenticated] = useState(false);
-  const [order, setOrder] = useState([]);
-  const [history, setHistory] = useState(() => {
-    const saved = localStorage.getItem("userHistory");
-    return saved ? JSON.parse(saved) : {};
-  });
-  const [showReport, setShowReport] = useState(false);
-  const reportRef = useRef(null);
+const DATA_FILE = 'data.json';
+const USERS = ['code123', 'jansen456', 'piet789'];
 
-  useEffect(() => {
-    localStorage.setItem("userHistory", JSON.stringify(history));
-  }, [history]);
-
-  const handleUserSelect = (user) => {
-    setSelectedUser(user);
-    setCodeInput("");
-    setAuthenticated(false);
-    setShowReport(false);
-  };
-
-  const checkCode = () => {
-    if (selectedUser && selectedUser.code === codeInput) {
-      setAuthenticated(true);
-    } else {
-      alert("Verkeerde code");
-    }
-  };
-
-  const addProduct = (product) => {
-    setOrder([...order, product]);
-  };
-
-  const registerOrder = () => {
-    if (order.length === 0 || !selectedUser) return;
-
-    const now = new Date();
-    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const timestamp = now.toLocaleString();
-    const userHistory = history[selectedUser.name] || {};
-    const monthHistory = userHistory[monthKey] || [];
-
-    const updated = {
-      ...history,
-      [selectedUser.name]: {
-        ...userHistory,
-        [monthKey]: [{ items: order, timestamp }, ...monthHistory],
-      },
-    };
-
-    setHistory(updated);
-    setOrder([]);
-  };
-
-  const total = order.reduce((sum, item) => sum + item.price, 0);
-
-  const downloadReport = () => {
-    if (reportRef.current) {
-      html2pdf().from(reportRef.current).save(`Afrekening-${selectedUser.name}.pdf`);
-    }
-  };
-
-  const renderReport = () => {
-    if (!selectedUser) return null;
-
-    const userData = history[selectedUser.name] || {};
-    const now = new Date();
-    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const monthlyData = userData[monthKey] || [];
-    const flatItems = monthlyData.flatMap((entry) => entry.items);
-    const totalPrice = flatItems.reduce((sum, item) => sum + item.price, 0);
-
-    return (
-      <div className="mt-6">
-        <div ref={reportRef} className="bg-white p-4 rounded shadow">
-          <h2 className="text-xl font-semibold mb-2">Maandafrekening ({monthKey})</h2>
-          {monthlyData.length === 0 ? (
-            <p className="text-gray-500">Geen geregistreerde bestellingen deze maand.</p>
-          ) : (
-            <>
-              <ul className="mb-2">
-                {monthlyData.map((entry, i) => (
-                  <li key={i} className="mb-1">
-                    <strong>{entry.timestamp}</strong>
-                    <ul className="ml-4 list-disc">
-                      {entry.items.map((item, j) => (
-                        <li key={j}>{item.name} - €{item.price.toFixed(2)}</li>
-                      ))}
-                    </ul>
-                  </li>
-                ))}
-              </ul>
-              <p className="font-bold">Totaal deze maand: €{totalPrice.toFixed(2)}</p>
-            </>
-          )}
-        </div>
-        {monthlyData.length > 0 && (
-          <Button className="mt-4" onClick={downloadReport}>Download als PDF</Button>
-        )}
-      </div>
-    );
-  };
-
-  return (
-    <div className="p-4 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">🍻 Bar Kassa</h1>
-
-      {!selectedUser ? (
-        <div>
-          <h2 className="text-xl font-semibold mb-2">Selecteer gebruiker</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {USERS.map((user) => (
-              <Button key={user.name} onClick={() => handleUserSelect(user)}>
-                {user.name}
-              </Button>
-            ))}
-          </div>
-        </div>
-      ) : !authenticated ? (
-        <div>
-          <h2 className="text-xl font-semibold mb-2">Welkom, {selectedUser.name}</h2>
-          <p className="mb-2">Voer je persoonlijke code in:</p>
-          <Input
-            type="password"
-            value={codeInput}
-            onChange={(e) => setCodeInput(e.target.value)}
-            className="mb-2 max-w-xs"
-          />
-          <Button onClick={checkCode}>Bevestig</Button>
-        </div>
-      ) : (
-        <>
-          <h2 className="text-xl font-semibold mb-4">Hallo, {selectedUser.name}!</h2>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-            {PRODUCTS.map((product) => (
-              <Card
-                key={product.id}
-                className="cursor-pointer hover:bg-gray-100"
-                onClick={() => addProduct(product)}
-              >
-                <CardContent className="p-4 text-center">
-                  <p className="font-semibold">{product.name}</p>
-                  <p className="text-sm text-gray-500">€{product.price.toFixed(2)}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <div className="mb-6">
-            <h2 className="text-xl font-semibold mb-2">Bestelling</h2>
-            {order.length === 0 ? (
-              <p className="text-gray-500">Geen items geselecteerd.</p>
-            ) : (
-              <ul className="mb-2">
-                {order.map((item, index) => (
-                  <li key={index}>{item.name} - €{item.price.toFixed(2)}</li>
-                ))}
-              </ul>
-            )}
-            <p className="font-bold">Totaal: €{total.toFixed(2)}</p>
-            <Button onClick={registerOrder} className="mt-2">Registreer bestelling</Button>
-          </div>
-
-          <Button variant="outline" onClick={() => setShowReport(!showReport)}>
-            {showReport ? "Verberg afrekening" : "Bekijk maandafrekening"}
-          </Button>
-
-          {showReport && renderReport()}
-        </>
-      )}
-    </div>
-  );
+// Load or initialize data file
+function loadData() {
+  if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, JSON.stringify([]));
+  return JSON.parse(fs.readFileSync(DATA_FILE));
 }
+
+function saveData(data) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+}
+
+app.post('/login', (req, res) => {
+  const { code } = req.body;
+  if (USERS.includes(code)) {
+    res.status(200).json({ success: true });
+  } else {
+    res.status(401).json({ success: false, message: 'Ongeldige code' });
+  }
+});
+
+app.post('/log', (req, res) => {
+  const { code, item, amount } = req.body;
+  const logs = loadData();
+  logs.push({ code, item, amount, timestamp: new Date().toISOString() });
+  saveData(logs);
+  res.status(201).json({ success: true });
+});
+
+app.get('/logs/:month', (req, res) => {
+  const { month } = req.params; // format: "2025-04"
+  const logs = loadData();
+  const filtered = logs.filter(log => log.timestamp.startsWith(month));
+  res.json(filtered);
+});
+
+app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
